@@ -24,18 +24,21 @@ class LSTM:
 
   def __call__(self, x: Tensor, hc: Optional[Tuple[Tensor, Tensor]]=None) -> Tuple[Tensor, Tensor]:
     # h and c have shape (n_layers, batch_size, hidden_size)
+    # x has shape (batch_size, input_size)
     if hc is None: hc = (Tensor.zeros(self.n_layers, x.size(0), self.hidden_size,
                                       dtype=x.dtype, device=x.device),) * 2
     
-    h_new = Tensor.zeros_like(hc[0]).contiguous()
-    c_new = Tensor.zeros_like(hc[1]).contiguous()
+    h_new = []
+    c_new = []
 
     x_i = x
     for i, cell in enumerate(self.cells):
-        hc_i = (hc[0][i], hc[1][i]) # previous state of ith cell
-        h, c = cell(x_i, hc=hc_i)
-        x_i = h
-        h_new[i] = h
-        c_new[i] = c
+      hc_i = (hc[0][i], hc[1][i]) # previous state of ith cell
+      h, c = cell(x_i, hc=hc_i)
+      x_i = h
+      h_new.append(h)
+      c_new.append(c)
     
+    h_new = Tensor.stack(*h_new, dim=0)
+    c_new = Tensor.stack(*c_new, dim=0)
     return self.linear(x_i), (h_new, c_new)    
