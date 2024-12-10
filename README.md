@@ -4,6 +4,8 @@ Replicating the paper "Neural Turing Machines" in tinygrad.
 
 ## TODO - PLAN
 - [ ] Figure out the training setup (http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
+    - Entering zeros?
+    - Simply using padding??
 - [ ] Implement the first experiment with a simple LSTM, check that it learns properly.
 - [ ] Implement the NTM with an MLP controller, make it work. Then do the same with the LSTM controller.
 - [ ] Perform the rest of the experiments.
@@ -53,3 +55,28 @@ Which controller to use?
 - The memory access pattern of an MLP should be less obscure, but we are also limited because the number of concurrent read and write heads imposes a bottleneck on the type of computation the NTM can perform. 
     - One head -> unary transform on a single memory vector at each timestep.
     - Two heads -> Binary vector transforms, etc.
+
+
+### First experiment: copy
+
+- Tests whether the NTM can store and recall a long sequence of arbitrary information.
+- Sequences of 8-bit random vectors of size 1-20.
+- Train sequence-by-sequence, i.e. no batch
+- Format: abcd0abcd
+
+---
+**LSTM**
+
+Assume we have a sequence 10x8. The LSTM cell will process each item of the sequence iteratively. Assuming we don't use batches, the input to the LSTM will be x_0 of shape (1, 8) and will output h_1 and c_1, of shapes (1, hidden_size). Then, we will enter the next item of the sequence x_1, together with h_1 and c_1. 
+
+- At the start, h_0 and c_0 are simply vectors of zeroes.
+- Once that the complete sequence is feed, we keep iterating but we enter a vector of zeros for x_i. In other words, once that we have fed the input to the LSTM, we stop providing information. At each step, then the LSTM processes its internal states h_i and c_i.
+- We will put a Linear layer to project the hidden activations into a vector of size 8. This will be the predicted sequence.
+
+```
+        a b c d
+| | | | | | | |
+a b c d 0 0 0 0
+```
+
+---
