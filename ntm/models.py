@@ -1,7 +1,66 @@
 from typing import Optional, Tuple
 
-from tinygrad import Tensor
+from tinygrad import Tensor, TinyJit
 import tinygrad.nn as nn
+
+
+class RNNCell:
+  def __init__(self, input_size, hidden_size, dropout=None):
+    if dropout is None: dropout = 0.
+    self.dropout = dropout
+    self.hidden_size = hidden_size
+
+    self.weight_ih = Tensor.uniform(hidden_size, input_size)
+    self.weight_hh = Tensor.uniform(hidden_size, hidden_size)
+    self.bias_ih = Tensor.uniform(hidden_size)
+    self.bias_hh = Tensor.uniform(hidden_size)
+  
+  def __call__(self, x, h: Optional[Tensor]=None):
+    if h is None:
+      shape = (self.hidden_size,) if len(x.shape) == 1 else (x.shape[0], self.hidden_size) 
+      h = Tensor.zeros(*shape, requires_grad=False)
+    return (x.linear(self.weight_ih.T, self.bias_ih) + \
+            h.linear(self.weight_hh.T, self.bias_hh)).tanh().dropout(self.dropout)
+
+
+class RNN:
+  def __init__(self, input_size, hidden_size, num_layers, dropout):
+    self.input_size = input_size
+    self.hidden_size = hidden_size
+    self.num_layers = num_layers
+
+    self.cells = [RNNCell(input_size, hidden_size, dropout) if i == 0 else \
+                  RNNCell(hidden_size, hidden_size, dropout if i != num_layers - 1 else 0) for i in range(num_layers)]
+
+  def __call__(self, x, h=None):
+    @TinyJit
+    def _do_step(x_, h_):
+      # TODO: doesnt work, probably bc I can use either 2 or 3 dims
+      return self.do_step(x_, h_)
+    
+    if h is None:
+      shape = (self.num_layers, self.hidden_size) if len(x.shape) == 2 else (self.num_layers, x.shape[1], self.hidden_size)
+      h = Tensor.zeros(*shape, requires_grad=False)
+    
+    output = None
+    for t in range(x.shape[0]):
+      h = self.do_step(x[t], h)
+      if output is None:
+        output = h[-1:]
+      else:
+        output = output.cat(h[-1:], dim=0).realize()
+    
+    return output, h
+
+
+  def do_step(self, x, h):
+    # x is either (N, I) or (I,)
+    new_h = [x]
+    for i, cell in enumerate(self.cells):
+      new_h.append(cell(new_h[i], h[i]))
+    return Tensor.stack(*new_h[1:]).realize()
+
+
 
 class LSTM:
   """
