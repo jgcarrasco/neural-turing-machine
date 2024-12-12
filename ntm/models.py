@@ -1,3 +1,4 @@
+import math
 from typing import Optional, Tuple
 
 from tinygrad import Tensor, TinyJit
@@ -10,17 +11,16 @@ class RNNCell:
     self.dropout = dropout
     self.hidden_size = hidden_size
 
-    self.weight_ih = Tensor.uniform(hidden_size, input_size)
-    self.weight_hh = Tensor.uniform(hidden_size, hidden_size)
+    stdv = 1.0 / math.sqrt(hidden_size)
+
+    self.weight_ih = Tensor.uniform(hidden_size, input_size, low=-stdv, high=stdv)
+    self.weight_hh = Tensor.uniform(hidden_size, hidden_size, low=-stdv, high=stdv)
     self.bias_ih = Tensor.uniform(hidden_size)
     self.bias_hh = Tensor.uniform(hidden_size)
   
-  def __call__(self, x, h: Optional[Tensor]=None):
-    if h is None:
-      shape = (self.hidden_size,) if len(x.shape) == 1 else (x.shape[0], self.hidden_size) 
-      h = Tensor.zeros(*shape, requires_grad=False)
+  def __call__(self, x, h):
     return (x.linear(self.weight_ih.T, self.bias_ih) + \
-            h.linear(self.weight_hh.T, self.bias_hh)).tanh().dropout(self.dropout)
+            h.linear(self.weight_hh.T, self.bias_hh)).tanh().dropout(self.dropout).realize()
 
 
 class RNN:
@@ -35,16 +35,14 @@ class RNN:
   def __call__(self, x, h=None):
     @TinyJit
     def _do_step(x_, h_):
-      # TODO: doesnt work, probably bc I can use either 2 or 3 dims
       return self.do_step(x_, h_)
     
     if h is None:
-      shape = (self.num_layers, self.hidden_size) if len(x.shape) == 2 else (self.num_layers, x.shape[1], self.hidden_size)
-      h = Tensor.zeros(*shape, requires_grad=False)
+      h = Tensor.zeros(self.num_layers, x.shape[1], self.hidden_size, requires_grad=False)
     
     output = None
     for t in range(x.shape[0]):
-      h = self.do_step(x[t], h)
+      h = _do_step(x[t] + 1 - 1, h) # If you don't add the +1 terms, JIT throws an error related to offset
       if output is None:
         output = h[-1:]
       else:
@@ -54,13 +52,20 @@ class RNN:
 
 
   def do_step(self, x, h):
-    # x is either (N, I) or (I,)
+    # x is (N, I)
     new_h = [x]
     for i, cell in enumerate(self.cells):
       new_h.append(cell(new_h[i], h[i]))
     return Tensor.stack(*new_h[1:]).realize()
 
-
+class RNNet:
+  def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
+    self.RNN = RNN(input_size, hidden_size, num_layers, dropout)
+    self.proj = nn.Linear(hidden_size, output_size)
+  def __call__(self, x, h=None):
+    output, h  = self.RNN(x, h)
+    output = self.proj(output)
+    return output, h
 
 class LSTM:
   """

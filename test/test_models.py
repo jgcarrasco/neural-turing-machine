@@ -22,20 +22,14 @@ class TestRNN(unittest.TestCase):
       layer.bias_ih.assign(Tensor(torch_layer.bias_ih.numpy()))      
       layer.bias_hh.assign(Tensor(torch_layer.bias_hh.numpy()))      
 
-    # test  unbatched input
-    for _ in range(3):
-      x = Tensor.randn(IS)
-      h_new = layer(x, None)
-      torch_x = torch.tensor(x.numpy())
-      torch_h_new = torch_layer(torch_x)
-      np.testing.assert_allclose(h_new.numpy(), torch_h_new.detach().numpy(), atol=5e-3, rtol=5e-3)
-
     # test batched input
     for _ in range(3):
       x = Tensor.randn(BS, IS)
-      h_new = layer(x, None)
+      h = Tensor.randn(BS, HS)
+      h_new = layer(x, h)
       torch_x = torch.tensor(x.numpy())
-      torch_h_new = torch_layer(torch_x)
+      torch_h = torch.tensor(h.numpy())
+      torch_h_new = torch_layer(torch_x, torch_h)
       np.testing.assert_allclose(h_new.numpy(), torch_h_new.detach().numpy(), atol=5e-3, rtol=5e-3)
 
   def test_rnn(self):
@@ -59,13 +53,13 @@ class TestRNN(unittest.TestCase):
       layer.cells[1].bias_ih.assign(Tensor(torch_layer.bias_ih_l1.numpy()))
       layer.cells[1].bias_hh.assign(Tensor(torch_layer.bias_hh_l1.numpy()))
 
-      # test initial hidden
-      for _ in range(3):
-        x = Tensor.randn(SQ, BS, IS)
-        z, h = layer(x, None)
-        torch_x = torch.tensor(x.numpy())
-        torch_z, torch_h = torch_layer(torch_x)
-        np.testing.assert_allclose(z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3)
+    # test initial hidden
+    for _ in range(3):
+      x = Tensor.randn(SQ, BS, IS)
+      z, h = layer(x, None)
+      torch_x = torch.tensor(x.numpy())
+      torch_z, torch_h = torch_layer(torch_x)
+      np.testing.assert_allclose(z.numpy(), torch_z.detach().numpy(), atol=5e-3, rtol=5e-3)
 
 if __name__ == "__main__":
   unittest.main()
