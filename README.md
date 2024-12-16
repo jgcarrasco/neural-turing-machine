@@ -1,6 +1,6 @@
 # Neural Turing Machines
 
-Replicating the paper "Neural Turing Machines" in tinygrad.
+Replicating the paper "Neural Turing Machines".
 
 ## TODO - PLAN
 - [ ] Figure out the training setup (http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
